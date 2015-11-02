@@ -6,8 +6,14 @@ from ij.io import OpenDialog
 from ij.measure import ResultsTable
 from fiji.util.gui import GenericDialogPlus
 from os import path
-from math import sqrt
+import math
 
+def getNoiseTolerance():
+    gd = GenericDialogPlus('set parameters')
+    gd.addStringField('noise tolerance: ', None)
+    gd.showDialog()
+    noise = gd.getNextString()
+    return noise
 
 def getResultsXCsYCs():
     '''grabs the XC and YC columns from the results table output from gaussfit_onspot plugin'''
@@ -39,11 +45,17 @@ def isFrames(imp):
         return False
     else:
         print "stack dimension error!"
-        
+
+def getCal(imp):
+    imp = IJ.getImage()
+    cal = imp.getCalibration()
+    scale = cal.pixelWidth*1000
+    return scale            
 
 def findAndFit(noise, pxsize):      #might not be a bad idea to have optional inputs here as tags...
     imp = IJ.getImage()
     stack = imp.getImageStack()
+    scale = getCal(imp)
     IJ.run("Find Maxima...", "noise=" + str(noise) + " output=[Point Selection] exclude")
     #add something here for the user to review the maxima? make interactive?
     # could also do some looping to make sure there are the right number of beads in 
@@ -57,11 +69,11 @@ def findAndFit(noise, pxsize):      #might not be a bad idea to have optional in
     ytimepoints = []
     
     
-    for i in range(stacksize):
-        #get imageprocessor for the working slice
-        ip = stack.getProcessor(i+1)
+    for slice in range(stacksize):
+        #set working slice
+        imp.setSlice(slice)
         #do the fit for the working slice
-        IJ.run("GaussFit OnSpot", "shape=Circle fitmode=[Levenberg Marquard] rectangle=4 pixel=" + str(pxsize) + " max=500 cpcf=1 base=100")
+        IJ.run("GaussFit OnSpot", "shape=Circle fitmode=[Levenberg Marquard] rectangle=4 pixel=" + str(scale) + " max=500 cpcf=1 base=100")
         # use the function that will loop through the results table and grab all the values
         #values are returned as lists.  
         (XCs, YCs, numpoints) = getResultsXCsYCs()
@@ -74,25 +86,111 @@ def findAndFit(noise, pxsize):      #might not be a bad idea to have optional in
     return xtimepoints, ytimepoints, numpoints
      
 
-# now let's put it all together and report a standard deviation! 
+# define some necessary math functions 
 
-#need to rethink what i actually want to report here - stdev doesn't work for 2d!
+def average(x):
+    average = sum(x)*1.0/len(x)
+    return average
+
 def stdev(s):
-    average = sum(s)*1.0/len(s)
+    avg = sum(s)*1.0/len(s)
     variance = map(lambda x: (x-avg)**2, s)
     return math.sqrt(average(variance))
+    
+
+noise = getNoiseTolerance()
+
+xtimepoints, ytimepoints, numpoints = findAndFit(noise, pxsize)
+print numpoints
+
+x = []
+y = []
+
+# plot all points
+for i in xtimepoints:
+    for j in range(numpoints):
+        x.append(i[j])
+
+for k in ytimepoints:
+    for l in range(numpoints):
+        y.append(k[l])
+
+plot = Plot("stuff", "xc", "yc", [], [])
+
+#plot.setColor(Color.BLACK)
+plot.addPoints(x, y, Plot.CIRCLE)
+plot_window = plot.show()
+
+# reorganize the lists:
+
+allpointsx = []
+
+for point in range(numpoints):
+    points = []
+    for time in range(len(xtimepoints)):
+        current = xtimepoints[time]
+        points.append(current[point])   
+    allpointsx.append(points)
+print allpointsx
+
+allpointsy = []
+
+for point in range(numpoints):
+    points = []
+    for time in range(len(ytimepoints)):
+        current = ytimepoints[time]
+        points.append(current[point])   
+    allpointsy.append(points)    
+print allpointsy
+
+#now, allpoints is a list of points.  each entry contains every timepoint for that point.
+
+# do this a sort of crappy way for now - stdev in x and in y separately. 
+xstdevs = []
+ystdevs = [] 
+
+for point in range(numpoints):
+    std = stdev(allpointsx[point])
+    xstdevs.append(std)
+    
+for point in range(numpoints):
+    std = stdev(allpointsy[point])
+    ystdevs.append(std)
 
 
-xtimepoints, ytimepoints, numpoints = findAndFit(10, 106)
+avgxstdev = average(xstdevs)
+avgystdev = average(ystdevs)
+
+print avgxstdev
+print avgystdev
 
 
-
-
-
-
-
-
+#trying to make this work to measure distances from the centroid for each point over time...
+'''
+def distanceFromCentroid(x, y):
+    centroid = [average(x), average(y)]
+    xy = [ (b,c) for b in x for c in y]
+    xdiffs = [ (b**2) for b in x ]
+    ydiffs = [ (c**2) for c in y ]
+    sums = [ (b**2 + c**2) for b in xdiffs for c in ydiffs ] 
+    distances = [ sqrt(d) for d in sums ]
+    distance = average(distances)
+    return distance
         
 
 
+averages = []
+
+for point in range(numpoints):
+    distances = []
+    distance = distanceFromCentroid(allpointsx[point], allpointsy[point])
+    distances.append(distance)
+    avg = average(distance)
+    averages.append(avg)
+    
+print averages
+    
+'''
+    
+    
     
