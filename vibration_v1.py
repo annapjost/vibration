@@ -5,6 +5,7 @@ from ij.gui import PlotWindow as PlotWindow
 from ij.io import OpenDialog
 from ij.measure import ResultsTable
 from fiji.util.gui import GenericDialogPlus
+from ij.gui import GenericDialog
 from os import path
 import math
 
@@ -14,6 +15,13 @@ def getNoiseTolerance():
     gd.showDialog()
     noise = gd.getNextString()
     return noise
+
+def dialog(title, field):
+    gd = GenericDialogPlus(title)
+    gd.addStringField(field, None)
+    gd.showDialog()
+    output = gd.getNextString()
+    return output
 
 def getResultsXCsYCs():
     '''grabs the XC and YC columns from the results table output from gaussfit_onspot plugin'''
@@ -54,7 +62,31 @@ def getCal(imp):
     else:
         scale = cal.pixelWidth*1000
         return scale            
-
+        
+def findApproveMaxima(imp):
+    gd = GenericDialogPlus('noise tolerance')
+    gd.addStringField('starting noise tolerance: ', None)
+    gd.showDialog()
+    noise = gd.getNextString()
+    IJ.run("Find Maxima...", "noise=" + str(noise) + " output=[Point Selection] exclude")
+    approved = False
+    while approved == False:
+        gd = GenericDialog('confirm noise tolerance')
+        gd.addMessage('are you happy with maxima?')
+        gd.enableYesNoCancel()
+        gd.showDialog()
+        if gd.wasOKed():
+            return noise
+            approved = True
+        elif gd.wasCanceled():
+            print "canceled"
+            return False
+        else:
+            gd = GenericDialogPlus('enter new noise tolerance')
+            gd.addStringField('new noise tolerance: ', str(noise))
+            gd.showDialog()
+            noise = gd.getNextString()
+            IJ.run("Find Maxima...", "noise=" + str(noise) + " output=[Point Selection] exclude")
 
 def findAndFit(noise, scale):      #might not be a bad idea to have optional inputs here as tags...
     imp = IJ.getImage()
@@ -101,7 +133,7 @@ def stdev(s):
     return math.sqrt(average(variance))
     
 
-noise = getNoiseTolerance()
+#noise = getNoiseTolerance()
 
 imp = IJ.getImage()
 
@@ -112,8 +144,7 @@ if scale == False:
     gd.showDialog()
     scale = gd.getNextString()
 
-print scale    
-
+noise = findApproveMaxima(imp)
 xtimepoints, ytimepoints, numpoints = findAndFit(noise, scale)
 print numpoints
 
@@ -157,6 +188,13 @@ for point in range(numpoints):
     allpointsy.append(points)    
 print allpointsy
 
+def plotPoint(allpointslist, xory, point):
+    plot = Plot(xory + " position " + str(point), "timepoint", "position (nm)", [], [])
+    plot.addPoints(range(len(allpointslist[point])), allpointslist[point], Plot.LINE)
+    plot_window = plot.show()
+
+plotPoint(allpointsx, "x", 1)
+plotPoint(allpointsy, "y", 1)
 #now, allpoints is a list of points.  each entry contains every timepoint for that point.
 
 # do this a sort of crappy way for now - stdev in x and in y separately. 
