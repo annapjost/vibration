@@ -49,13 +49,16 @@ def isFrames(imp):
 def getCal(imp):
     imp = IJ.getImage()
     cal = imp.getCalibration()
-    scale = cal.pixelWidth*1000
-    return scale            
+    if cal.unit == 'pixel':
+        return False
+    else:
+        scale = cal.pixelWidth*1000
+        return scale            
 
-def findAndFit(noise, pxsize):      #might not be a bad idea to have optional inputs here as tags...
+
+def findAndFit(noise, scale):      #might not be a bad idea to have optional inputs here as tags...
     imp = IJ.getImage()
     stack = imp.getImageStack()
-    scale = getCal(imp)
     IJ.run("Find Maxima...", "noise=" + str(noise) + " output=[Point Selection] exclude")
     #add something here for the user to review the maxima? make interactive?
     # could also do some looping to make sure there are the right number of beads in 
@@ -100,7 +103,18 @@ def stdev(s):
 
 noise = getNoiseTolerance()
 
-xtimepoints, ytimepoints, numpoints = findAndFit(noise, pxsize)
+imp = IJ.getImage()
+
+scale = getCal(imp)
+if scale == False:
+    gd = GenericDialogPlus('set scale')
+    gd.addStringField('pixel size (nm): ', None)
+    gd.showDialog()
+    scale = gd.getNextString()
+
+print scale    
+
+xtimepoints, ytimepoints, numpoints = findAndFit(noise, scale)
 print numpoints
 
 x = []
@@ -115,7 +129,7 @@ for k in ytimepoints:
     for l in range(numpoints):
         y.append(k[l])
 
-plot = Plot("stuff", "xc", "yc", [], [])
+plot = Plot("summary", "xc", "yc", [], [])
 
 #plot.setColor(Color.BLACK)
 plot.addPoints(x, y, Plot.CIRCLE)
