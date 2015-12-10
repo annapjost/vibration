@@ -10,7 +10,7 @@ from os import path
 import math
 
 def plotPoint(allpointslist, xory, point):
-    plot = Plot(xory + " position " + str(point), "timepoint", "position (nm)", [], [])
+    plot = Plot(xory + " bead " + str(point), "timepoint", "position (nm)", [], [])
     plot.addPoints(range(len(allpointslist[point])), allpointslist[point], Plot.LINE)
     plot_window = plot.show()
 
@@ -43,7 +43,7 @@ def isFrames(imp):
     elif NSlices != 1 and NFrames == 1:
         return False
     else:
-        print "stack dimension error!"
+        IJ.log("stack dimension error!")
 
 def getCal(imp):
     """Get pixel size calibration (in nm) from image unless it is uncalibrated"""
@@ -140,7 +140,7 @@ if scale == False:
 
 noise = findApproveMaxima(imp)
 if noise == False:
-    print "User clicked cancel!"
+    IJ.log("User clicked cancel!")
 else:
     xtimepoints, ytimepoints, numpoints = findAndFit(noise, scale)
     
@@ -162,6 +162,27 @@ else:
     #plot.setColor(Color.BLACK)
     plot.addPoints(x, y, Plot.CIRCLE)
     plot_window = plot.show()
+    
+    
+    #subtract first position, then average each point
+     # (this part needs a lot of work!  not ready yet!)
+    #xtimepointsnorm = []
+    #initialx = xtimepoints[0]
+    #norm = []
+    
+    #for t in range(len(xtimepoints)):
+     #   norm = map(lambda a,b: a-b, [xtimepoints[t],xtimepoints[0]])
+      #  xtimepointsnorm.append(norm)
+    
+    
+    #xpointavg = []
+    #for i in range(len(xtimepoints)):
+     #   xpoint = average(xtimepoints[i])
+      #  xpointavg.append(xpoint)
+        
+    #plot = Plot("X positions averaged", "timepoint", "position (nm)", [], [])
+    #plot.addPoints(range(len(xpointavg)), xpointavg, Plot.LINE)
+    #plot_window = plot.show()
 
     # reorganize the lists:
 
@@ -184,9 +205,11 @@ else:
     		points.append(current[point])   
     	allpointsy.append(points)    
 
+    plotPoint(allpointsx, "x", 3)
+    plotPoint(allpointsy, "y", 3)
+    plotPoint(allpointsx, "x", 5)
+    plotPoint(allpointsy, "y", 5)
     
-    plotPoint(allpointsx, "x", 1)
-    plotPoint(allpointsy, "y", 1)
 
 
 #now, allpoints is a list of points.  each entry contains every timepoint for that point.
@@ -206,9 +229,18 @@ else:
 
     avgxstdev = average(xstdevs)
     avgystdev = average(ystdevs)
-
-    print avgxstdev
-    print avgystdev
+    # the stdevs reported here are an average of all points!
+    IJ.log("x standard deviation (avg of beads): " + str(avgxstdev))
+    IJ.log("y standard deviation (avg of beads): " + str(avgystdev))
+    
+    plot = Plot("bead X stdevs", "bead", "stdev (nm)", [], [])
+    plot.setLimits(0, numpoints, 0, 50)
+    plot.addPoints(range(1,numpoints+1), xstdevs, Plot.CIRCLE)
+    plot_window = plot.show()
+    
+    for point in range(numpoints):
+        IJ.log("x standard deviation for bead " + str(point+1) + ": " + str(xstdevs[point]))
+        IJ.log("y standard deviation for bead " + str(point+1) + ": " + str(ystdevs[point]))
 
 
 #trying to make this work to measure distances from the centroid for each point over time...
